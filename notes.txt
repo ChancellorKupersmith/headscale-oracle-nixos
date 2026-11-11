@@ -1,0 +1,29 @@
+TODO:
+1. setup free tier vps
+    - rate limits to ensure traffic stays within free tier
+    - assign DNS to IP
+        - AAAA
+    - caddy proxy 
+    VALIDATION:
+        - sudo systemctl status headscale --no-pager
+          sudo systemctl status caddy --no-pager
+          sudo journalctl -u headscale -n 100 --no-pager
+        - Before enrollment, check https://hs.example.net from an external
+        network. A 404 on a generic URL is not necessarily a failure; TLS,
+        reverse-proxy logs and Headscale service logs matter. Do not weaken
+        certificate verification to work around a misconfiguration.
+
+2. create headscale user
+3. enable tailscale on clients
+    VALIDATION:
+    - tailscale status
+    tailscale ping mini # replace with the real node name
+    tailscale netcheck
+    getent hosts mini.mesh.example.net
+
+TODOs:
+- Easy turn on/off (mimic vpn ux)
+- Wake-on-LAN over private network
+
+
+
