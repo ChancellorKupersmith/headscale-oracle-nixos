@@ -1,4 +1,15 @@
 { lib, domain, sshPublicKey, ... }:
+let
+  # Paste the PUBLIC signing key printed on mini by:
+  # sudo sh -c 'nix key convert-secret-to-public < /var/cache/nix/cachemini-private.key'
+  # Keep the corresponding private key on mini only.
+  cacheminiPublicKey = "cachemini-1:ULsw0ejlyGDJTSIAHtJFbuaISfsTunlb9HnQy4FpYkI=";
+
+  # Assumes this flake lives in a private GitHub repo at this URL.
+  # Change the repo name if your actual remote differs.
+  deploymentFlake =
+    "git+ssh://git@github.com/ChancellorKupersmith/headscale-oracle-nixos.git?ref=master#headscale-vps";
+in
 {
   system.stateVersion = "26.05";
   networking.hostName = "headscale-vps";
@@ -25,6 +36,12 @@
   };
   users.users.root.openssh.authorizedKeys.keys = [ sshPublicKey ];
 
+  # Trust GitHub's SSH host key for unattended read-only flake fetches.
+  services.openssh.knownHosts.github = {
+    hostNames = [ "github.com" ];
+    publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";
+  };
+
   services.headscale = {
     enable = true;
     address = "127.0.0.1";
@@ -36,6 +53,7 @@
         # Local-only MagicDNS names (different from public control URL).
         base_domain = "mesh.internal";
         override_local_dns = false;
+        nameservers.global = [];
       };
       database.type = "sqlite";
       derp.server.enabled = false;
@@ -61,7 +79,31 @@
     '';
   };
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings = {
+    experimental-features = [ "nix-command" "flakes" ];
+    # A lower priority number wins when both caches have the same path.
+    extra-substituters = [ "https://cache-pull.showready.xyz?priority=30" ];
+    extra-trusted-public-keys = lib.optional (cacheminiPublicKey != null) cacheminiPublicKey;
+  };
+
+  # Updates at 05:00 Pacific, after mini's existing 03:00 builder job.
+  # This pulls the committed lockfile: Oracle never advances inputs itself.
+  system.autoUpgrade = {
+    enable = true;
+    flake = deploymentFlake;
+    upgrade = false;
+    operation = "switch";
+    allowReboot = false;
+    dates = "*-*-* 05:00:00 America/Los_Angeles";
+    randomizedDelaySec = "0";
+    persistent = false;
+    flags = [ "--print-build-logs" ];
+  };
+
+  # Root's private key is created manually outside /nix/store. GitHub gets
+  # only the matching read-only *public* deploy key, not this private key.
+  systemd.services.nixos-upgrade.environment.GIT_SSH_COMMAND =
+    "ssh -F /dev/null -i /root/.ssh/headscale-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes";
   nix.gc = {
     automatic = true;
     dates = "weekly";
