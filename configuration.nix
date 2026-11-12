@@ -1,4 +1,10 @@
-{ lib, domain, sshPublicKey, ... }:
+{
+  lib,
+  domain,
+  sshPublicKey,
+  pkgs,
+  ...
+}:
 let
   # Paste the PUBLIC signing key printed on mini by:
   # sudo sh -c 'nix key convert-secret-to-public < /var/cache/nix/cachemini-private.key'
@@ -7,8 +13,7 @@ let
 
   # Assumes this flake lives in a private GitHub repo at this URL.
   # Change the repo name if your actual remote differs.
-  deploymentFlake =
-    "git+ssh://git@github.com/ChancellorKupersmith/headscale-oracle-nixos.git?ref=master#headscale-vps";
+  deploymentFlake = "git+ssh://git@github.com/ChancellorKupersmith/headscale-oracle-nixos.git?ref=master#headscale-vps";
 in
 {
   system.stateVersion = "26.05";
@@ -17,13 +22,21 @@ in
   # OCI's Ubuntu cloud image usually uses DHCP. Record `ip route` and
   # `ip -4 addr` BEFORE reinstall; use static networking if DHCP is absent.
   networking.useDHCP = lib.mkDefault true;
-  networking.firewall.allowedTCPPorts = [ 22 80 443 ];
+  networking.firewall.allowedTCPPorts = [
+    22
+    80
+    443
+  ];
 
   # The OCI ARM VM should boot using UEFI; verify /sys/firmware/efi before install.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
   boot.initrd.availableKernelModules = [
-    "virtio_pci" "virtio_scsi" "virtio_blk" "nvme" "xhci_pci"
+    "virtio_pci"
+    "virtio_scsi"
+    "virtio_blk"
+    "nvme"
+    "xhci_pci"
   ];
 
   services.openssh = {
@@ -53,11 +66,14 @@ in
         # Local-only MagicDNS names (different from public control URL).
         base_domain = "mesh.internal";
         override_local_dns = false;
-        nameservers.global = [];
+        nameservers.global = [ ];
       };
       database.type = "sqlite";
       derp.server.enabled = false;
-      trusted_proxies = [ "127.0.0.1/32" "::1/128" ];
+      trusted_proxies = [
+        "127.0.0.1/32"
+        "::1/128"
+      ];
     };
   };
 
@@ -80,7 +96,10 @@ in
   };
 
   nix.settings = {
-    experimental-features = [ "nix-command" "flakes" ];
+    experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
     # A lower priority number wins when both caches have the same path.
     extra-substituters = [ "https://cache-pull.showready.xyz?priority=30" ];
     extra-trusted-public-keys = lib.optional (cacheminiPublicKey != null) cacheminiPublicKey;
@@ -109,4 +128,8 @@ in
     dates = "weekly";
     options = "--delete-older-than 14d";
   };
+
+  environment.systemPackages = with pkgs; [
+    git
+  ];
 }
